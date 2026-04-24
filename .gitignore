@@ -1,0 +1,15 @@
+# Compiled binaries
+/cpu_bench_go
+/cpu_bench
+*.exe
+
+# Test & profile output
+*.test
+*.out
+*.prof
+
+# Editor / OS
+.DS_Store
+.idea/
+.vscode/
+*.swp
