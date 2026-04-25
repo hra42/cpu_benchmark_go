@@ -144,8 +144,19 @@ func toModeScore(m scoring.ModeScore) ModeScore {
 
 func detectCPUModel() string {
 	if runtime.GOOS == "linux" {
+		// x86 has "model name" in /proc/cpuinfo; ARM typically does not.
 		if m := readLinuxCPUModel(); m != "" {
 			return m
+		}
+		// SBCs and embedded boards expose a human-readable board name here.
+		if m := readDeviceTreeModel(); m != "" {
+			if topo := summarizeARMTopology(); topo != "" {
+				return m + " (" + topo + ")"
+			}
+			return m
+		}
+		if topo := summarizeARMTopology(); topo != "" {
+			return topo
 		}
 	}
 	return fmt.Sprintf("unknown (%s/%s)", runtime.GOOS, runtime.GOARCH)
@@ -167,4 +178,105 @@ func readLinuxCPUModel() string {
 		}
 	}
 	return ""
+}
+
+func readDeviceTreeModel() string {
+	b, err := os.ReadFile("/proc/device-tree/model")
+	if err != nil {
+		return ""
+	}
+	// device-tree strings are NUL-terminated.
+	return strings.TrimSpace(strings.Trim(string(b), "\x00"))
+}
+
+// summarizeARMTopology aggregates heterogeneous ARM cores from /proc/cpuinfo
+// into a compact label like "4× Cortex-A55 + 4× Cortex-A78".
+// Returns "" on non-ARM or when the cpuinfo layout is not recognized.
+func summarizeARMTopology() string {
+	f, err := os.Open("/proc/cpuinfo")
+	if err != nil {
+		return ""
+	}
+	defer f.Close()
+
+	type key struct{ impl, part string }
+	counts := make(map[key]int)
+	var order []key
+	var cur key
+
+	sc := bufio.NewScanner(f)
+	for sc.Scan() {
+		line := sc.Text()
+		if line == "" {
+			if cur.impl != "" && cur.part != "" {
+				if _, seen := counts[cur]; !seen {
+					order = append(order, cur)
+				}
+				counts[cur]++
+			}
+			cur = key{}
+			continue
+		}
+		colon := strings.Index(line, ":")
+		if colon < 0 {
+			continue
+		}
+		k := strings.TrimSpace(line[:colon])
+		v := strings.TrimSpace(line[colon+1:])
+		switch k {
+		case "CPU implementer":
+			cur.impl = v
+		case "CPU part":
+			cur.part = v
+		}
+	}
+	if cur.impl != "" && cur.part != "" {
+		if _, seen := counts[cur]; !seen {
+			order = append(order, cur)
+		}
+		counts[cur]++
+	}
+	if len(counts) == 0 {
+		return ""
+	}
+
+	parts := make([]string, 0, len(order))
+	for _, k := range order {
+		parts = append(parts, fmt.Sprintf("%d× %s", counts[k], armCoreName(k.impl, k.part)))
+	}
+	return strings.Join(parts, " + ")
+}
+
+// armCoreName maps ARM (0x41) implementer + part IDs to readable names.
+// Non-exhaustive — covers the cores commonly seen in SBCs, phones, servers.
+func armCoreName(impl, part string) string {
+	if impl != "0x41" {
+		return fmt.Sprintf("%s:%s", impl, part)
+	}
+	names := map[string]string{
+		"0xd03": "Cortex-A53",
+		"0xd04": "Cortex-A35",
+		"0xd05": "Cortex-A55",
+		"0xd07": "Cortex-A57",
+		"0xd08": "Cortex-A72",
+		"0xd09": "Cortex-A73",
+		"0xd0a": "Cortex-A75",
+		"0xd0b": "Cortex-A76",
+		"0xd0c": "Neoverse-N1",
+		"0xd0d": "Cortex-A77",
+		"0xd40": "Neoverse-V1",
+		"0xd41": "Cortex-A78",
+		"0xd44": "Cortex-X1",
+		"0xd46": "Cortex-A510",
+		"0xd47": "Cortex-A710",
+		"0xd48": "Cortex-X2",
+		"0xd49": "Neoverse-N2",
+		"0xd4d": "Cortex-A715",
+		"0xd4e": "Cortex-X3",
+		"0xd4f": "Neoverse-V2",
+	}
+	if n, ok := names[part]; ok {
+		return n
+	}
+	return "ARM " + part
 }
