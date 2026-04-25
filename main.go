@@ -1,10 +1,13 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"os"
+	"os/signal"
 	"strings"
+	"syscall"
 	"time"
 
 	"cpu_bench_go/benchmarks"
@@ -12,6 +15,7 @@ import (
 	"cpu_bench_go/results"
 	"cpu_bench_go/runner"
 	"cpu_bench_go/scoring"
+	"cpu_bench_go/stress"
 )
 
 const toolVersion = "0.1"
@@ -94,7 +98,17 @@ func main() {
 	size := flag.String("size", "medium", "input size: small | medium | large")
 	out := flag.String("output", "table", "output format: table | json | both")
 	profile := flag.String("profile", "default", "scoring profile: default | database | batch")
+	stressMode := flag.Bool("stress", false, "stress mode: max-heat CPU+memory load (ignores benchmark/scoring flags)")
+	stressDuration := flag.Duration("stress-duration", 0, "stress mode duration (0 = run until Ctrl-C)")
+	stressCPU := flag.Int("stress-cpu", 0, "stress mode CPU workers (0 = NumCPU)")
+	stressMem := flag.Int("stress-mem", 0, "stress mode memory workers (0 = NumCPU/2, -1 = disable)")
+	stressMemMiB := flag.Int("stress-mem-mib", 256, "stress mode bytes per memory worker, in MiB")
 	flag.Parse()
+
+	if *stressMode {
+		runStress(*stressDuration, *stressCPU, *stressMem, *stressMemMiB)
+		return
+	}
 
 	if *duration <= 0 {
 		fail("--duration must be > 0")
@@ -211,6 +225,40 @@ func emitJSON(size string, cfg runner.Config, score *scoring.Result, st, mt []*r
 	}
 	_, err = os.Stdout.Write(append(b, '\n'))
 	return err
+}
+
+func runStress(duration time.Duration, cpuWorkers, memWorkers, memMiB int) {
+	if duration < 0 {
+		fail("--stress-duration must be >= 0")
+	}
+	if memMiB <= 0 {
+		fail("--stress-mem-mib must be > 0")
+	}
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
+	cfg := stress.Config{
+		Duration:     duration,
+		CPUWorkers:   cpuWorkers,
+		MemWorkers:   memWorkers,
+		MemBytesPerW: memMiB << 20,
+		DisableMem:   memWorkers < 0,
+	}
+	if cfg.DisableMem {
+		cfg.MemWorkers = 0
+	}
+
+	if duration == 0 {
+		fmt.Fprintln(os.Stderr, "stress mode running until Ctrl-C...")
+	} else {
+		fmt.Fprintf(os.Stderr, "stress mode running for %s (Ctrl-C to abort early)...\n", duration)
+	}
+
+	s := stress.Run(ctx, cfg, os.Stderr)
+
+	fmt.Fprintf(os.Stderr, "\nstress complete: elapsed=%s cpu_ops=%.3e mem_streamed=%.2f GiB cpu_workers=%d mem_workers=%d\n",
+		s.Elapsed.Round(time.Millisecond), float64(s.CPUOps), float64(s.MemBytes)/(1<<30),
+		s.CPUWorkers, s.MemWorkers)
 }
 
 func fail(format string, args ...any) {
