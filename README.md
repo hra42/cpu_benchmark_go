@@ -1,6 +1,6 @@
 # cpu_bench_go
 
-A reproducible, portable CPU benchmark for Linux and macOS (Go). Measures single-thread and multi-thread performance across six workloads, normalizes scores against a reference CPU, and exports results as JSON so machines can be compared directly.
+A reproducible, portable CPU benchmark for Linux and macOS (Go). Measures single-thread and multi-thread performance across eight workloads, normalizes scores against a reference CPU, and exports results as JSON so machines can be compared directly.
 
 ## What it measures
 
@@ -12,6 +12,8 @@ A reproducible, portable CPU benchmark for Linux and macOS (Go). Measures single
 | `matrix_float` | Float64 matrix multiply               | FP ALU, cache hierarchy                 |
 | `hashing`      | SHA-256 over a fixed buffer (1 MiB / 64 MiB) | Crypto/ALU throughput, bandwidth |
 | `json`         | JSON decode + encode of nested structs | Allocator, GC, reflection              |
+| `php_like`     | PHP-style request: JSON parse → assoc-array work → HMAC → HTML render → JSON encode | Mixed string + map + small-hash workload |
+| `apache_like`  | Apache-style request: parse raw HTTP bytes → canonicalize headers → route match → build response + CLF log line | Byte scanning, branch-heavy header/route work |
 
 Each benchmark runs for a fixed duration (default 10 s) after a warmup (default 2 s), collects per-iteration latencies, computes median / P95 / P99, and verifies its own output so the compiler cannot elide the work.
 
@@ -24,12 +26,12 @@ Each benchmark is normalized against a reference measurement:
 
 Benchmarks are grouped into four categories, then combined into a weighted total:
 
-| Category   | Inputs                                  | Default weight |
-|------------|-----------------------------------------|----------------|
-| Integer    | `primes`, `sorting`                     | 30%            |
-| Memory     | `matrix_int`, `matrix_float`, `hashing` | 30%            |
-| Throughput | `hashing`, `json`                       | 25%            |
-| Latency    | P99 of all six benchmarks               | 15%            |
+| Category   | Inputs                                                                    | Default weight |
+|------------|---------------------------------------------------------------------------|----------------|
+| Integer    | `primes`, `sorting`                                                       | 30%            |
+| Memory     | `matrix_int`, `matrix_float`, `hashing`, `php_like`, `apache_like`        | 30%            |
+| Throughput | `hashing`, `json`, `php_like`, `apache_like`                              | 25%            |
+| Latency    | P99 of all eight benchmarks                                               | 15%            |
 
 Alternative profiles (`database`, `batch`) rebalance the weights. Single-thread and multi-thread totals are always reported separately.
 
@@ -119,7 +121,7 @@ Referenz: Apple M3 Pro — Score 1000
 cpu_bench_go/
 ├── main.go                  # CLI, flag parsing, orchestration
 ├── runner/runner.go         # Benchmark harness (warmup, measurement, MT fan-out)
-├── benchmarks/              # primes, sorting, matrix, hashing, json
+├── benchmarks/              # primes, sorting, matrix, hashing, json, php_like, apache_like
 ├── scoring/                 # Normalization, weights, labels, reference values
 ├── results/                 # RawResult, percentile computation
 ├── output/                  # Terminal table + JSON export
@@ -144,8 +146,12 @@ Measured speedups on the M3 Pro (12 logical cores), single-thread → multi-thre
 | `matrix_float` |      140 |     1130 |   8.1×  |
 | `hashing`      |     2713 |    25295 |   9.3×  |
 | `json`         |      279 |     2185 |   7.8×  |
+| `php_like`     |      166 |      713 |   4.3×  |
+| `apache_like`  |     1072 |     5903 |   5.5×  |
 
 **`primes` at `--size medium` is bandwidth-bound on Apple Silicon:** a 10 MB sieve exceeds per-core cache, and 12 cores sharing the unified memory fabric saturate before they can parallelize. This is a genuine platform property, not a benchmark bug — x86 desktops with dedicated DRAM channels per socket will scale this workload substantially better, and the score will reflect that.
+
+**`php_like` and `apache_like` scale to ~4–5× rather than ~9×:** both workloads spend significant time in the Go allocator and GC (per-request maps, response buffers, JSON marshalling). Allocator contention and GC stop-the-world pauses are inherently shared across goroutines, so they cap MT speedup below what pure-CPU benchmarks achieve. This is realistic for the workloads they abstract — real PHP and Apache deployments hit similar shared-resource walls.
 
 ## Recalibration
 
