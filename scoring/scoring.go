@@ -64,6 +64,8 @@ var references = map[string]referenceValues{
 	"matrix_float": {OpsPerSecST: 139.67, OpsPerSecMT: 1129.75, P99NsST: 7_535_500, P99NsMT: 18_790_000},
 	"hashing":      {OpsPerSecST: 2712.85, OpsPerSecMT: 25294.70, P99NsST: 413_584, P99NsMT: 1_253_125},
 	"json":         {OpsPerSecST: 279.48, OpsPerSecMT: 2184.63, P99NsST: 5_312_125, P99NsMT: 11_374_208},
+	"php_like":     {OpsPerSecST: 166.46, OpsPerSecMT: 712.79, P99NsST: 7_258_334, P99NsMT: 19_927_958},
+	"apache_like":  {OpsPerSecST: 1071.54, OpsPerSecMT: 5903.20, P99NsST: 1_174_542, P99NsMT: 3_370_917},
 }
 
 // BenchmarksFor returns the benchmark names that feed into the given category.
@@ -73,11 +75,11 @@ func BenchmarksFor(c Category) []string {
 	case CategoryInteger:
 		return []string{"primes", "sorting"}
 	case CategoryMemory:
-		return []string{"matrix_int", "matrix_float", "hashing"}
+		return []string{"matrix_int", "matrix_float", "hashing", "php_like", "apache_like"}
 	case CategoryThroughput:
-		return []string{"hashing", "json"}
+		return []string{"hashing", "json", "php_like", "apache_like"}
 	case CategoryLatency:
-		return []string{"primes", "sorting", "matrix_int", "matrix_float", "hashing", "json"}
+		return []string{"primes", "sorting", "matrix_int", "matrix_float", "hashing", "json", "php_like", "apache_like"}
 	default:
 		return nil
 	}
@@ -172,10 +174,10 @@ func computeMode(rs []*results.RawResult, mt bool, w Weights) ModeScore {
 	}
 
 	integer := mean(collectOps("primes", "sorting"))
-	memory := mean(collectOps("matrix_int", "matrix_float", "hashing"))
-	throughput := mean(collectOps("hashing", "json"))
+	memory := mean(collectOps("matrix_int", "matrix_float", "hashing", "php_like", "apache_like"))
+	throughput := mean(collectOps("hashing", "json", "php_like", "apache_like"))
 
-	allNames := []string{"primes", "sorting", "matrix_int", "matrix_float", "hashing", "json"}
+	allNames := []string{"primes", "sorting", "matrix_int", "matrix_float", "hashing", "json", "php_like", "apache_like"}
 	latencyScores := make([]float64, 0, len(allNames))
 	for _, n := range allNames {
 		if r, ok := byName[n]; ok {
