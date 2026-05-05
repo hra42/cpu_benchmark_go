@@ -82,6 +82,24 @@ func registry() ([]benchEntry, map[string]benchEntry) {
 				"large":  benchmarks.JSONLarge,
 			},
 		},
+		{
+			name:    "php_like",
+			factory: func() runner.Benchmark { return &benchmarks.PHPLike{} },
+			sizes: map[string]int{
+				"small":  benchmarks.PHPSmall,
+				"medium": benchmarks.PHPMedium,
+				"large":  benchmarks.PHPLarge,
+			},
+		},
+		{
+			name:    "apache_like",
+			factory: func() runner.Benchmark { return &benchmarks.ApacheLike{} },
+			sizes: map[string]int{
+				"small":  benchmarks.ApacheSmall,
+				"medium": benchmarks.ApacheMedium,
+				"large":  benchmarks.ApacheLarge,
+			},
+		},
 	}
 	byName := make(map[string]benchEntry, len(entries))
 	for _, e := range entries {
