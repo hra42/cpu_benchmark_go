@@ -52,7 +52,15 @@ Chosen for availability, not as a canonical baseline — see [Recalibration](#re
 | 2000 – 4000     | High Performance       |
 | > 4000          | Workstation / Server   |
 
-## Install & run
+## Install
+
+```sh
+curl -fsSL https://cpu-bench.hra42.com/install | sh
+```
+
+Installs the latest release into `/usr/local/bin` (or `~/.local/bin` if no sudo). Supported: Linux amd64/arm64/riscv64, macOS Apple Silicon. For Intel Macs or other platforms, build from source (below).
+
+## Build from source
 
 ```sh
 git clone ssh://git@git.hra42.com:2222/hra42/cpu_bench_go.git
