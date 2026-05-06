@@ -2,7 +2,7 @@
 # cpu_bench_go installer
 #
 # Usage:
-#   curl -fsSL https://cpu-bench.hra42.com/install | sh
+#   curl -fsSL https://cpu-bench.hra42.lol/install | sh
 #
 # Env overrides:
 #   VERSION       release tag (default: latest; accepts "1.2.3" or "v1.2.3")

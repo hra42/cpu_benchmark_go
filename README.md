@@ -55,7 +55,7 @@ Chosen for availability, not as a canonical baseline — see [Recalibration](#re
 ## Install
 
 ```sh
-curl -fsSL https://cpu-bench.hra42.com/install | sh
+curl -fsSL https://cpu-bench.hra42.lol/install | sh
 ```
 
 Installs the latest release into `/usr/local/bin` (or `~/.local/bin` if no sudo). Supported: Linux amd64/arm64/riscv64, macOS Apple Silicon. For Intel Macs or other platforms, build from source (below).
